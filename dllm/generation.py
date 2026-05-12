@@ -104,6 +104,7 @@ def stream_block_diffusion_generate(
 
     model.eval()
     device = next(model.parameters()).device
+    model_dtype = next(model.parameters()).dtype
     x = input_ids.to(device)
     prompt_len = x.shape[1]
     eos = eos_token_id if eos_token_id is not None else tokenizer.eos_token_id
@@ -125,7 +126,7 @@ def stream_block_diffusion_generate(
                     seq_len=x.shape[1],
                     current_block=current_block,
                     device=device,
-                    dtype=torch.float32,
+                    dtype=model_dtype,
                 )
                 logits = model(input_ids=x, attention_mask=attention_mask).logits
                 shifted = torch.cat([logits[:, :1, :], logits[:, :-1, :]], dim=1)
