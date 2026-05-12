@@ -51,6 +51,21 @@ def _complete_eos_position(generated: torch.Tensor, eos_token_id: int, mask_toke
     return None
 
 
+def _suppressed_token_ids(tokenizer: PreTrainedTokenizerBase, mask_token_id: int, eos_token_id: int | None) -> list[int]:
+    """Tokens that should not be sampled as normal text inside a denoising block."""
+
+    ids = {mask_token_id}
+    for token in (
+        tokenizer.pad_token_id,
+        tokenizer.bos_token_id,
+        tokenizer.convert_tokens_to_ids("<|im_start|>"),
+        tokenizer.convert_tokens_to_ids("<|im_end|>"),
+    ):
+        if isinstance(token, int) and token >= 0 and token != eos_token_id:
+            ids.add(token)
+    return sorted(ids)
+
+
 @torch.no_grad()
 def block_diffusion_generate(
     model: PreTrainedModel,
@@ -118,6 +133,7 @@ def stream_block_diffusion_generate(
     x = input_ids.to(device)
     prompt_len = x.shape[1]
     eos = eos_token_id if eos_token_id is not None else tokenizer.eos_token_id
+    suppressed_ids = _suppressed_token_ids(tokenizer, mask_token_id, eos)
     new_tokens = 0
 
     while new_tokens < max_new_tokens:
@@ -125,7 +141,17 @@ def stream_block_diffusion_generate(
         block = torch.full((x.shape[0], current_block), mask_token_id, dtype=torch.long, device=device)
         x = torch.cat([x, block], dim=1)
 
+        block_iterations = 0
+        max_block_iterations = current_block * 4
         while (x[:, -current_block:] == mask_token_id).any():
+            block_iterations += 1
+            if block_iterations > max_block_iterations:
+                remaining = x[:, -current_block:] == mask_token_id
+                block_view = x[:, -current_block:].clone()
+                block_view[remaining] = eos if eos is not None else tokenizer.pad_token_id
+                x[:, -current_block:] = block_view
+                break
+
             for start in range(0, current_block, sub_block_size):
                 end = min(start + sub_block_size, current_block)
                 local = x[:, -(current_block - start) : -(current_block - end) if end < current_block else None]
@@ -143,7 +169,7 @@ def stream_block_diffusion_generate(
                 slice_start = x.shape[1] - current_block + start
                 slice_end = x.shape[1] - current_block + end
                 candidate_logits = shifted[:, slice_start:slice_end, :].clone()
-                candidate_logits[..., mask_token_id] = -torch.inf
+                candidate_logits[..., suppressed_ids] = -torch.inf
                 candidates, probs = _sample(candidate_logits, temperature=temperature, top_p=top_p)
                 confidence = probs.gather(-1, candidates.unsqueeze(-1)).squeeze(-1)
                 mask_positions = x[:, slice_start:slice_end] == mask_token_id
