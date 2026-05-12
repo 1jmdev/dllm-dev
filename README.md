@@ -99,7 +99,8 @@ python train.py \
   --warmup-steps 500 \
   --per-device-train-batch-size 1 \
   --gradient-accumulation-steps 8 \
-  --dtype auto
+  --bf16 \
+  --gradient-checkpointing
 ```
 
 DeepSpeed ZeRO-2 training:
@@ -117,7 +118,8 @@ deepspeed train.py \
   --warmup-steps 500 \
   --per-device-train-batch-size 1 \
   --gradient-accumulation-steps 8 \
-  --dtype auto
+  --bf16 \
+  --gradient-checkpointing
 ```
 
 For a quick smoke test, lower `--max-steps`:
@@ -130,7 +132,8 @@ python train.py \
   --max-steps 5 \
   --context-length 512 \
   --block-size 32 \
-  --dtype auto
+  --fp16 \
+  --gradient-checkpointing
 ```
 
 On an 8GB GPU, use a smaller context for smoke tests if needed:
@@ -144,10 +147,11 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python train.py \
   --context-length 256 \
   --block-size 32 \
   --gradient-accumulation-steps 16 \
-  --dtype float16
+  --fp16 \
+  --gradient-checkpointing
 ```
 
-Training defaults to gradient checkpointing and `--dtype auto`, which uses bf16 on supported CUDA GPUs and fp16 otherwise. Full fp32 training is not recommended on small GPUs.
+Model loading is fixed to `dtype="auto"` in the Python entrypoints, so there is no `--dtype` CLI flag. Use `--bf16` on GPUs that support bf16, or `--fp16` on smaller/older CUDA GPUs. Use `--gradient-checkpointing` when VRAM is tight.
 
 ## Generate
 

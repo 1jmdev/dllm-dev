@@ -24,7 +24,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(args.model, dtype="auto", trust_remote_code=True, attn_implementation="sdpa",).to(args.device)
+    model = AutoModelForCausalLM.from_pretrained(args.model, dtype="auto", trust_remote_code=True, attn_implementation="sdpa").to(args.device)
     mask_token_id = ensure_mask_token(tokenizer, model)
     messages = [{"role": "user", "content": args.prompt}]
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)

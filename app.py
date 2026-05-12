@@ -12,7 +12,7 @@ MODEL_PATH = "outputs/qwen3-0.6b-block-diffusion"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, dtype="auto", trust_remote_code=True).to(DEVICE)
+model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, dtype="auto", trust_remote_code=True, attn_implementation="sdpa").to(DEVICE)
 mask_token_id = ensure_mask_token(tokenizer, model)
 
 
