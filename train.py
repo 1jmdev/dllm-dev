@@ -1,4 +1,5 @@
 import argparse
+import inspect
 import os
 from pathlib import Path
 
@@ -71,31 +72,34 @@ def main() -> None:
         max_length=args.context_length,
     )
 
-    training_args = TrainingArguments(
-        output_dir=args.output_dir,
-        max_steps=args.max_steps,
-        learning_rate=args.learning_rate,
-        warmup_steps=args.warmup_steps,
-        lr_scheduler_type="linear",
-        per_device_train_batch_size=args.per_device_train_batch_size,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
-        save_steps=args.save_steps,
-        logging_steps=args.logging_steps,
-        logging_first_step=True,
-        logging_strategy="steps",
-        save_total_limit=5,
-        bf16=args.bf16,
-        fp16=args.fp16,
-        gradient_checkpointing=args.gradient_checkpointing,
-        deepspeed=args.deepspeed,
-        optim="adamw_torch_fused" if torch.cuda.is_available() else "adamw_torch",
-        dataloader_num_workers=args.dataloader_num_workers,
-        dataloader_pin_memory=torch.cuda.is_available(),
-        torch_compile=args.torch_compile,
-        include_tokens_per_second=True,
-        report_to="wandb" if "WANDB_PROJECT" in os.environ else "none",
-        remove_unused_columns=False,
-    )
+    training_kwargs = {
+        "output_dir": args.output_dir,
+        "max_steps": args.max_steps,
+        "learning_rate": args.learning_rate,
+        "warmup_steps": args.warmup_steps,
+        "lr_scheduler_type": "linear",
+        "per_device_train_batch_size": args.per_device_train_batch_size,
+        "gradient_accumulation_steps": args.gradient_accumulation_steps,
+        "save_steps": args.save_steps,
+        "logging_steps": args.logging_steps,
+        "logging_first_step": True,
+        "logging_strategy": "steps",
+        "save_total_limit": 5,
+        "bf16": args.bf16,
+        "fp16": args.fp16,
+        "gradient_checkpointing": args.gradient_checkpointing,
+        "deepspeed": args.deepspeed,
+        "optim": "adamw_torch_fused" if torch.cuda.is_available() else "adamw_torch",
+        "dataloader_num_workers": args.dataloader_num_workers,
+        "dataloader_pin_memory": torch.cuda.is_available(),
+        "torch_compile": args.torch_compile,
+        "include_tokens_per_second": True,
+        "report_to": "wandb" if "WANDB_PROJECT" in os.environ else "none",
+        "remove_unused_columns": False,
+    }
+    supported_args = inspect.signature(TrainingArguments).parameters
+    training_kwargs = {key: value for key, value in training_kwargs.items() if key in supported_args}
+    training_args = TrainingArguments(**training_kwargs)
 
     print(
         "Training config: "
