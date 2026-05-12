@@ -41,6 +41,16 @@ def _sample(logits: torch.Tensor, temperature: float, top_p: float) -> tuple[tor
     return tokens, probs
 
 
+def _complete_eos_position(generated: torch.Tensor, eos_token_id: int, mask_token_id: int) -> int | None:
+    """Return EOS index only when all earlier generated slots are finalized."""
+
+    eos_positions = (generated == eos_token_id).nonzero(as_tuple=False).flatten()
+    for eos_position in eos_positions.tolist():
+        if not (generated[:eos_position] == mask_token_id).any():
+            return eos_position
+    return None
+
+
 @torch.no_grad()
 def block_diffusion_generate(
     model: PreTrainedModel,
@@ -143,7 +153,9 @@ def stream_block_diffusion_generate(
                 best = confidence.argmax(dim=-1)
                 unmask[torch.arange(x.shape[0], device=device), best] = True
                 unmask &= mask_positions
-                x[:, slice_start:slice_end][unmask] = candidates[unmask]
+                x_slice = x[:, slice_start:slice_end].clone()
+                x_slice[unmask] = candidates[unmask]
+                x[:, slice_start:slice_end] = x_slice
 
                 if emit_text:
                     generated = x[0, prompt_len:]
@@ -156,10 +168,16 @@ def stream_block_diffusion_generate(
                         "text": tokenizer.decode(generated[generated != mask_token_id], skip_special_tokens=True),
                     }
 
-                if eos is not None and (x[:, prompt_len:] == eos).any():
-                    eos_pos = (x[0, prompt_len:] == eos).nonzero(as_tuple=False)[0].item()
-                    yield {"input_ids": x[:, : prompt_len + eos_pos + 1], "tokens": [], "text": tokenizer.decode(x[0, prompt_len : prompt_len + eos_pos], skip_special_tokens=True)}
-                    return
+                if eos is not None:
+                    eos_pos = _complete_eos_position(x[0, prompt_len:], eos, mask_token_id)
+                    if eos_pos is not None:
+                        final_ids = x[:, : prompt_len + eos_pos + 1]
+                        yield {
+                            "input_ids": final_ids,
+                            "tokens": [],
+                            "text": tokenizer.decode(x[0, prompt_len : prompt_len + eos_pos], skip_special_tokens=True),
+                        }
+                        return
 
         new_tokens += current_block
 
