@@ -26,11 +26,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--per-device-train-batch-size", type=int, default=1, help="Packed sequences per device.")
     parser.add_argument("--gradient-accumulation-steps", type=int, default=8, help="Gradient accumulation steps.")
     parser.add_argument("--save-steps", type=int, default=500, help="Checkpoint save interval.")
-    parser.add_argument("--logging-steps", type=int, default=10, help="Logging interval.")
+    parser.add_argument("--logging-steps", type=int, default=1, help="Logging interval.")
     parser.add_argument("--num-proc", type=int, default=1, help="Dataset preprocessing workers.")
     parser.add_argument("--bf16", action="store_true", help="Use bfloat16 training.")
     parser.add_argument("--fp16", action="store_true", help="Use float16 training.")
     parser.add_argument("--gradient-checkpointing", action="store_true", help="Enable gradient checkpointing.")
+    parser.add_argument("--dataloader-num-workers", type=int, default=4, help="Training dataloader workers.")
+    parser.add_argument("--torch-compile", action="store_true", help="Enable torch.compile for long runs.")
     parser.add_argument("--deepspeed", default=None, help="Optional DeepSpeed config path.")
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
@@ -79,14 +81,28 @@ def main() -> None:
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         save_steps=args.save_steps,
         logging_steps=args.logging_steps,
+        logging_first_step=True,
+        logging_strategy="steps",
         save_total_limit=5,
         bf16=args.bf16,
         fp16=args.fp16,
         gradient_checkpointing=args.gradient_checkpointing,
         deepspeed=args.deepspeed,
         optim="adamw_torch_fused" if torch.cuda.is_available() else "adamw_torch",
+        dataloader_num_workers=args.dataloader_num_workers,
+        dataloader_pin_memory=torch.cuda.is_available(),
+        torch_compile=args.torch_compile,
+        include_tokens_per_second=True,
         report_to="wandb" if "WANDB_PROJECT" in os.environ else "none",
         remove_unused_columns=False,
+    )
+
+    print(
+        "Training config: "
+        f"steps={args.max_steps}, context={args.context_length}, block={args.block_size}, "
+        f"micro_batch={args.per_device_train_batch_size}, grad_accum={args.gradient_accumulation_steps}, "
+        f"bf16={args.bf16}, fp16={args.fp16}, gradient_checkpointing={args.gradient_checkpointing}, "
+        f"torch_compile={args.torch_compile}"
     )
 
     trainer = Trainer(model=model, args=training_args, train_dataset=tokenized, data_collator=collator)

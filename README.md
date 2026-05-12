@@ -85,7 +85,7 @@ Supported row formats include `messages`, `conversations`, or Alpaca-style `inst
 
 ## Train Qwen3-0.6B
 
-Single-process training:
+Fast single-A100 training:
 
 ```bash
 python train.py \
@@ -98,9 +98,29 @@ python train.py \
   --learning-rate 2e-5 \
   --warmup-steps 500 \
   --per-device-train-batch-size 1 \
-  --gradient-accumulation-steps 8 \
+  --gradient-accumulation-steps 1 \
   --bf16 \
-  --gradient-checkpointing
+  --logging-steps 1
+```
+
+Do not use `--gradient-checkpointing` on an A100 40GB unless you are out of memory. It saves VRAM but substantially slows training.
+
+For roughly one-hour experimentation, run fewer optimizer steps first:
+
+```bash
+python train.py \
+  --model Qwen/Qwen3-0.6B \
+  --data-files data/raw/train.jsonl \
+  --output-dir outputs/qwen3-0.6b-block-diffusion \
+  --block-size 32 \
+  --context-length 2048 \
+  --max-steps 1200 \
+  --learning-rate 2e-5 \
+  --warmup-steps 100 \
+  --per-device-train-batch-size 1 \
+  --gradient-accumulation-steps 1 \
+  --bf16 \
+  --logging-steps 1
 ```
 
 DeepSpeed ZeRO-2 training:
@@ -117,9 +137,9 @@ deepspeed train.py \
   --learning-rate 2e-5 \
   --warmup-steps 500 \
   --per-device-train-batch-size 1 \
-  --gradient-accumulation-steps 8 \
+  --gradient-accumulation-steps 1 \
   --bf16 \
-  --gradient-checkpointing
+  --logging-steps 1
 ```
 
 For a quick smoke test, lower `--max-steps`:
@@ -152,6 +172,8 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python train.py \
 ```
 
 Model loading is fixed to `dtype="auto"` in the Python entrypoints, so there is no `--dtype` CLI flag. Use `--bf16` on GPUs that support bf16, or `--fp16` on smaller/older CUDA GPUs. Use `--gradient-checkpointing` when VRAM is tight.
+
+The trainer logs loss every step by default. If you only see the progress bar, wait for the first optimizer step or set `--logging-steps 1` explicitly.
 
 ## Generate
 
