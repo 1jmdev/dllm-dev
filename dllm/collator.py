@@ -21,8 +21,9 @@ class BlockDiffusionCollator:
     """Build Fast-dLLM v2 style complementary masked training batches.
 
     Each sample is padded to a multiple of `block_size` with mask tokens, then
-    duplicated into complementary views. A masked token is predicted from the
-    logit at the previous position, preserving the AR token-shift objective.
+    duplicated into complementary views. Labels are placed at the masked token
+    positions because Hugging Face causal LM heads apply the AR one-token shift
+    internally: logit `i - 1` is trained against label `i`.
     """
 
     mask_token_id: int
@@ -56,12 +57,11 @@ class BlockDiffusionCollator:
         for view_mask in (mask, valid & ~mask):
             input_ids = clean.clone()
             input_ids[view_mask] = self.mask_token_id
-            shifted_labels = torch.full_like(clean, -100)
+            labels_for_view = torch.full_like(clean, -100)
             target_positions = torch.where(view_mask)[0]
-            target_positions = target_positions[target_positions > 0]
-            shifted_labels[target_positions - 1] = clean[target_positions]
+            labels_for_view[target_positions] = clean[target_positions]
             views.append(input_ids)
-            labels.append(shifted_labels)
+            labels.append(labels_for_view)
 
         input_ids = torch.stack(views)
         labels_tensor = torch.stack(labels)

@@ -25,6 +25,11 @@ def main() -> None:
     args = parse_args()
     tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(args.model, dtype="auto", trust_remote_code=True, attn_implementation="sdpa").to(args.device)
+    if getattr(model.config, "block_diffusion_label_shift", None) != "hf_causal_lm_internal_shift":
+        print(
+            "Warning: this checkpoint does not advertise the fixed block-diffusion label shift. "
+            "If it was trained before the collator fix, retrain it before using sub-block sizes above 1."
+        )
     mask_token_id = ensure_mask_token(tokenizer, model)
     messages: list[dict[str, str]] = []
     print("Block-diffusion chat. Type 'clear' or 'exit'.")

@@ -56,6 +56,7 @@ def main() -> None:
     model.config.mask_token_id = mask_token_id
     model.config.bd_size = args.block_size
     model.config.block_diffusion_base_model = args.model
+    model.config.block_diffusion_label_shift = "hf_causal_lm_internal_shift"
     model.config.use_cache = False
 
     if args.gradient_checkpointing:

@@ -85,6 +85,8 @@ Supported row formats include `messages`, `conversations`, or Alpaca-style `inst
 
 ## Train Qwen3-0.6B
 
+If you trained a checkpoint before the collator label-shift fix, retrain it. Old checkpoints may decode with `--sub-block-size 1` but will break for larger sub-blocks because they were trained one token off from the Fast-dLLM v2 sampler.
+
 Fast single-A100 training:
 
 ```bash
